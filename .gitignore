@@ -2,3 +2,6 @@
 *.h5
 *.json
 __pycache__/
+*.pyc
+log6/
+log/
