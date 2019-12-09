@@ -65,7 +65,7 @@ BN_DECAY_CLIP = 0.99
 
 HOSTNAME = socket.gethostname()
 
-ALL_FILES = provider.getDataFiles('indoor3d_sem_seg_hdf5_data/all_files.txt')
+ALL_FILES = provider.getDataFiles('indoor3d_sem_seg_hdf5_data/fast_list.txt')
 room_filelist = [line.rstrip() for line in open('indoor3d_sem_seg_hdf5_data/room_filelist.txt')]
 
 # Load ALL data
@@ -127,8 +127,13 @@ def get_bn_decay(batch):
 
 def train():
 
+    print("Num GPUs Available: ",
+          len(tf.config.experimental.list_physical_devices('GPU')))
+
     tf.debugging.set_log_device_placement(True)
     strategy = tf.distribute.MirroredStrategy()
+    # strategy = tf.distribute.MirroredStrategy(devices=["/gpu:0", "/gpu:1"])
+
     with strategy.scope():
         with tf.Graph().as_default():
              # with tf.device('/gpu:'+str(GPU_INDEX)):
