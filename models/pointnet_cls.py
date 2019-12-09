@@ -9,6 +9,7 @@ sys.path.append(os.path.join(BASE_DIR, '../utils'))
 import tf_util
 from transform_nets import input_transform_net, feature_transform_net
 
+
 def placeholder_inputs(batch_size, num_point):
     pointclouds_pl = tf.placeholder(tf.float32, shape=(batch_size, num_point, 3))
     labels_pl = tf.placeholder(tf.int32, shape=(batch_size))
@@ -92,6 +93,6 @@ def get_loss(pred, label, end_points, reg_weight=0.001):
 
 if __name__=='__main__':
     with tf.Graph().as_default():
-        inputs = tf.zeros((32,1024,3))
+        inputs = tf.zeros((32, 1024, 3))
         outputs = get_model(inputs, tf.constant(True))
         print(outputs)
