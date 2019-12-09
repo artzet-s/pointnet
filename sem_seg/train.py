@@ -127,11 +127,11 @@ def get_bn_decay(batch):
 
 def train():
 
-    with tf.Graph().as_default():
-        tf.debugging.set_log_device_placement(True)
-        strategy = tf.distribute.MirroredStrategy()
-        with strategy.scope():
-        # with tf.device('/gpu:'+str(GPU_INDEX)):
+    tf.debugging.set_log_device_placement(True)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        with tf.Graph().as_default():
+             # with tf.device('/gpu:'+str(GPU_INDEX)):
             pointclouds_pl, labels_pl = model.placeholder_inputs(
                 BATCH_SIZE, NUM_POINT)
             is_training_pl = tf.placeholder(tf.bool, shape=())
@@ -163,43 +163,43 @@ def train():
             # Add ops to save and restore all the variables.
             saver = tf.train.Saver()
             
-        # Create a session
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        config.allow_soft_placement = True
-        config.log_device_placement = True
-        sess = tf.Session(config=config)
+            # Create a session
+            config = tf.ConfigProto()
+            config.gpu_options.allow_growth = True
+            config.allow_soft_placement = True
+            config.log_device_placement = True
+            sess = tf.Session(config=config)
 
-        # Add summary writers
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'train'),
-                                  sess.graph)
-        test_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'test'))
+            # Add summary writers
+            merged = tf.summary.merge_all()
+            train_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'train'),
+                                      sess.graph)
+            test_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'test'))
 
-        # Init variables
-        init = tf.global_variables_initializer()
-        sess.run(init, {is_training_pl:True})
+            # Init variables
+            init = tf.global_variables_initializer()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+            sess.run(init, {is_training_pl:True})
 
-        ops = {'pointclouds_pl': pointclouds_pl,
-               'labels_pl': labels_pl,
-               'is_training_pl': is_training_pl,
-               'pred': pred,
-               'loss': loss,
-               'train_op': train_op,
-               'merged': merged,
-               'step': batch}
+            ops = {'pointclouds_pl': pointclouds_pl,
+                   'labels_pl': labels_pl,
+                   'is_training_pl': is_training_pl,
+                   'pred': pred,
+                   'loss': loss,
+                   'train_op': train_op,
+                   'merged': merged,
+                   'step': batch}
 
-        for epoch in range(MAX_EPOCH):
-            log_string('**** EPOCH %03d ****' % (epoch))
-            sys.stdout.flush()
-             
-            train_one_epoch(sess, ops, train_writer)
-            eval_one_epoch(sess, ops, test_writer)
-            
-            # Save the variables to disk.
-            if epoch % 10 == 0:
-                save_path = saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"))
-                log_string("Model saved in file: %s" % save_path)
+            for epoch in range(MAX_EPOCH):
+                log_string('**** EPOCH %03d ****' % (epoch))
+                sys.stdout.flush()
+
+                train_one_epoch(sess, ops, train_writer)
+                eval_one_epoch(sess, ops, test_writer)
+
+                # Save the variables to disk.
+                if epoch % 10 == 0:
+                    save_path = saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"))
+                    log_string("Model saved in file: %s" % save_path)
 
 
 
