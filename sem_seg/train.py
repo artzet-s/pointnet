@@ -126,8 +126,12 @@ def get_bn_decay(batch):
 
 
 def train():
+
     with tf.Graph().as_default():
-        with tf.device('/gpu:'+str(GPU_INDEX)):
+        tf.debugging.set_log_device_placement(True)
+        strategy = tf.distribute.MirroredStrategy()
+        with strategy.scope():
+        # with tf.device('/gpu:'+str(GPU_INDEX)):
             pointclouds_pl, labels_pl = model.placeholder_inputs(
                 BATCH_SIZE, NUM_POINT)
             is_training_pl = tf.placeholder(tf.bool, shape=())
