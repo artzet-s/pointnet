@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import tensorflow as tf
 import socket
-import tracemalloc
+# import tracemalloc
 # ==============================================================================
 import os
 import sys
@@ -19,7 +19,7 @@ import model
 # ==============================================================================
 
 # Start to trace memory allocation
-tracemalloc.start()
+# tracemalloc.start()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
@@ -283,12 +283,13 @@ def eval_one_epoch(sess, ops, test_writer):
 
 if __name__ == "__main__":
 
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
+    # snapshot = tracemalloc.take_snapshot()
+    # top_stats = snapshot.statistics('lineno')
 
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
+    # print("[ Top 10 ]")
+    # for stat in top_stats[:10]:
+    #     print(stat)
+    #
 
-    # train()
-    # LOG_FOUT.close()
+    train()
+    LOG_FOUT.close()
