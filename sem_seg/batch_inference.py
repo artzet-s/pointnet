@@ -14,7 +14,7 @@ import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
-sys.path.append(BASE_DIR)
+sys.path.append(  )
 
 import model
 import indoor3d_util
@@ -40,7 +40,8 @@ DUMP_DIR = FLAGS.dump_dir
 if not os.path.exists(DUMP_DIR): os.mkdir(DUMP_DIR)
 LOG_FOUT = open(os.path.join(DUMP_DIR, 'log_evaluate.txt'), 'w')
 LOG_FOUT.write(str(FLAGS)+'\n')
-ROOM_PATH_LIST = [os.path.join(ROOT_DIR,line.rstrip()) for line in open(FLAGS.room_data_filelist)]
+ROOM_PATH_LIST = [os.path.join(ROOT_DIR, line.rstrip()) for line in open(
+    FLAGS.room_data_filelist)]
 
 NUM_CLASSES = 13
 
