@@ -1,9 +1,11 @@
-# LOAD Annotation path
+#
+#
+#           RE-FORMAT DATA - TXT TO NPY
+#
+#
 # ==============================================================================
 import os
 import sys
-
-
 # ==============================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
@@ -21,12 +23,19 @@ output_folder = os.path.join(ROOT_DIR, 'data/stanford_indoor3d')
 if not os.path.exists(output_folder):
     os.mkdir(output_folder)
 
-# Note: there is an extra character in the v1.2 data in Area_5/hallway_6. It's fixed manually.
+# WARNNG ! Note:
+# There is an extra character in the v1.2 data in Area_5/hallway_6.
+# It must be fixed manually.
 for anno_path in anno_paths:
-    print(anno_path)
-    try:
-        elements = anno_path.split('/')
-        out_filename = elements[-3]+'_'+elements[-2]+'.npy' # Area_1_hallway_1.npy
-        indoor3d_util.collect_point_label(anno_path, os.path.join(output_folder, out_filename), 'numpy')
-    except:
-        print(anno_path, 'ERROR!!')
+    elements = anno_path.split('/')
+
+    # Area_1_hallway_1.npy
+    out_filename = "{}/{}_{}.npy".format(
+        output_folder, elements[-3], elements[-2])
+
+    if not os.path.exists(out_filename):
+        try:
+            indoor3d_util.collect_point_label(
+                anno_path, out_filename, 'numpy')
+        except Exception as e:
+            print(anno_path, 'ERROR!!', e)

@@ -1,4 +1,11 @@
+#
+#
+#       EVALUATE NN MODEL
+#
+#
 # ==============================================================================
+import numpy as np
+import tensorflow as tf
 import argparse
 import os
 import sys
@@ -8,7 +15,8 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(BASE_DIR)
-from model import *
+
+import model
 import indoor3d_util
 # ==============================================================================
 
@@ -45,12 +53,13 @@ def evaluate():
     is_training = False
      
     with tf.device('/gpu:'+str(GPU_INDEX)):
-        pointclouds_pl, labels_pl = placeholder_inputs(BATCH_SIZE, NUM_POINT)
+        pointclouds_pl, labels_pl = model.placeholder_inputs(BATCH_SIZE,
+                                                             NUM_POINT)
         is_training_pl = tf.placeholder(tf.bool, shape=())
 
         # simple model
-        pred = get_model(pointclouds_pl, is_training_pl)
-        loss = get_loss(pred, labels_pl)
+        pred = model.get_model(pointclouds_pl, is_training_pl)
+        loss = model.get_loss(pred, labels_pl)
         pred_softmax = tf.nn.softmax(pred)
  
         # Add ops to save and restore all the variables.
