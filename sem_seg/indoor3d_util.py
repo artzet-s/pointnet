@@ -324,7 +324,7 @@ def room2samples(data, label, sample_num_point):
 
 def room2samples_plus_normalized(data_label, num_point):
 	""" room2sample, with input filename and RGB preprocessing.
-		for each block centralize XYZ, add normalized XYZ as 678 channels
+		for each block centralize XYZ, add normalized XYZ as 6, 7, 8 channels
 	"""
 	data = data_label[:, 0:6]
 	data[:, 3:6] /= 255.0

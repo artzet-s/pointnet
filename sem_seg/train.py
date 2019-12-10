@@ -1,11 +1,8 @@
 # ==============================================================================
 import argparse
-import math
-import h5py
 import numpy as np
 import tensorflow as tf
 import socket
-# import tracemalloc
 # ==============================================================================
 import os
 import sys
@@ -15,25 +12,38 @@ sys.path.append(BASE_DIR)
 
 import provider
 import model
+
+
 # ==============================================================================
 
-# Start to trace memory allocation
-# tracemalloc.start()
+def argument_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gpu', type=int, default=0,
+                        help='GPU to use [default: GPU 0]')
+    parser.add_argument('--log_dir', default='log',
+                        help='Log dir [default: ''log]')
+    parser.add_argument('--num_point', type=int, default=4096,
+                        help='Point number [default: 4096]')
+    parser.add_argument('--max_epoch', type=int, default=50,
+                        help='Epoch to run [default: 50]')
+    parser.add_argument('--batch_size', type=int, default=24,
+                        help='Batch Size during training [default: 24]')
+    parser.add_argument('--learning_rate', type=float, default=0.001,
+                        help='Initial learning rate [default: 0.001]')
+    parser.add_argument('--momentum', type=float, default=0.9,
+                        help='Initial learning rate [default: 0.9]')
+    parser.add_argument('--optimizer', default='adam',
+                        help='adam or momentum [default: adam]')
+    parser.add_argument('--decay_step', type=int, default=300000,
+                        help='Decay step for lr decay [default: 300000]')
+    parser.add_argument('--decay_rate', type=float, default=0.5,
+                        help='Decay rate for lr decay [default: 0.5]')
+    parser.add_argument('--test_area', type=int, default=6,
+                        help='Which area to use for test, option: 1-6 [default: 6]')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--gpu', type=int, default=0, help='GPU to use [default: GPU 0]')
-parser.add_argument('--log_dir', default='log', help='Log dir [default: log]')
-parser.add_argument('--num_point', type=int, default=4096, help='Point number [default: 4096]')
-parser.add_argument('--max_epoch', type=int, default=50, help='Epoch to run [default: 50]')
-parser.add_argument('--batch_size', type=int, default=24, help='Batch Size during training [default: 24]')
-parser.add_argument('--learning_rate', type=float, default=0.001, help='Initial learning rate [default: 0.001]')
-parser.add_argument('--momentum', type=float, default=0.9, help='Initial learning rate [default: 0.9]')
-parser.add_argument('--optimizer', default='adam', help='adam or momentum [default: adam]')
-parser.add_argument('--decay_step', type=int, default=300000, help='Decay step for lr decay [default: 300000]')
-parser.add_argument('--decay_rate', type=float, default=0.5, help='Decay rate for lr decay [default: 0.5]')
-parser.add_argument('--test_area', type=int, default=6, help='Which area to use for test, option: 1-6 [default: 6]')
-FLAGS = parser.parse_args()
+    return parser.parse_args()
 
+FLAGS = argument_parser()
 
 BATCH_SIZE = FLAGS.batch_size
 NUM_POINT = FLAGS.num_point
@@ -48,54 +58,61 @@ DECAY_RATE = FLAGS.decay_rate
 
 LOG_DIR = FLAGS.log_dir
 if not os.path.exists(LOG_DIR): os.mkdir(LOG_DIR)
-os.system('cp model.py %s' % (LOG_DIR)) # bkp of model def
-os.system('cp train.py %s' % (LOG_DIR)) # bkp of train procedure
+os.system('cp model.py %s' % (LOG_DIR))  # bkp of model def
+os.system('cp train.py %s' % (LOG_DIR))  # bkp of train procedure
 LOG_FOUT = open(os.path.join(LOG_DIR, 'log_train.txt'), 'w')
-LOG_FOUT.write(str(FLAGS)+'\n')
+LOG_FOUT.write(str(FLAGS) + '\n')
 
 MAX_NUM_POINT = 4096
 NUM_CLASSES = 13
 
 BN_INIT_DECAY = 0.5
 BN_DECAY_DECAY_RATE = 0.5
-#BN_DECAY_DECAY_STEP = float(DECAY_STEP * 2)
+# BN_DECAY_DECAY_STEP = float(DECAY_STEP * 2)
 BN_DECAY_DECAY_STEP = float(DECAY_STEP)
 BN_DECAY_CLIP = 0.99
 
 HOSTNAME = socket.gethostname()
 
-ALL_FILES = provider.getDataFiles('indoor3d_sem_seg_hdf5_data/all_files.txt')
-room_filelist = [line.rstrip() for line in open('indoor3d_sem_seg_hdf5_data/room_filelist.txt')]
 
-# Load ALL data
-data_batch_list = []
-label_batch_list = []
-for h5_filename in ALL_FILES:
-    data_batch, label_batch = provider.loadDataFile(h5_filename)
-    data_batch_list.append(data_batch)
-    label_batch_list.append(label_batch)
+def get_data():
+    ALL_FILES = provider.getDataFiles(
+        'indoor3d_sem_seg_hdf5_data/all_files.txt')
+    room_filelist = [line.rstrip() for line in open(
+        'indoor3d_sem_seg_hdf5_data/room_filelist.txt')]
 
-data_batches = np.concatenate(data_batch_list, 0)
-label_batches = np.concatenate(label_batch_list, 0)
-print(data_batches.shape)
-print(label_batches.shape)
+    # Load ALL data
+    data_batch_list = []
+    label_batch_list = []
+    for h5_filename in ALL_FILES:
+        data_batch, label_batch = provider.loadDataFile(h5_filename)
+        data_batch_list.append(data_batch)
+        label_batch_list.append(label_batch)
 
-test_area = 'Area_' + str(FLAGS.test_area)
-train_idxs = []
-test_idxs = []
-for i,room_name in enumerate(room_filelist):
-    if test_area in room_name:
-        test_idxs.append(i)
-    else:
-        train_idxs.append(i)
+    test_area = 'Area_' + str(FLAGS.test_area)
+    train_idxs = []
+    test_idxs = []
+    for i, room_name in enumerate(room_filelist):
+        if test_area in room_name:
+            test_idxs.append(i)
+        else:
+            train_idxs.append(i)
 
-train_data = data_batches[train_idxs, ...]
-train_label = label_batches[train_idxs]
-test_data = data_batches[test_idxs, ...]
-test_label = label_batches[test_idxs]
+    data_batches = np.concatenate(data_batch_list, 0)
+    label_batches = np.concatenate(label_batch_list, 0)
 
-print(train_data.shape, train_label.shape)
-print(test_data.shape, test_label.shape)
+    train_data = data_batches[train_idxs, ...]
+    train_label = label_batches[train_idxs]
+    test_data = data_batches[test_idxs, ...]
+    test_label = label_batches[test_idxs]
+
+    return train_data, train_label, test_data, test_label
+
+
+def main():
+
+    train(*get_data())
+    LOG_FOUT.close()
 
 
 def log_string(out_str):
@@ -126,7 +143,7 @@ def get_bn_decay(batch):
     return bn_decay
 
 
-def train():
+def train(train_data, train_label, test_data, test_label):
 
     print("Num GPUs Available: ",
           len(tf.config.experimental.list_physical_devices('GPU')))
@@ -199,8 +216,8 @@ def train():
                 log_string('**** EPOCH %03d ****' % (epoch))
                 sys.stdout.flush()
 
-                train_one_epoch(sess, ops, train_writer)
-                eval_one_epoch(sess, ops, test_writer)
+                train_one_epoch(train_data, train_label, sess, ops, train_writer)
+                eval_one_epoch(test_data, test_label, sess, ops, test_writer)
 
                 # Save the variables to disk.
                 if epoch % 10 == 0:
@@ -208,13 +225,14 @@ def train():
                     log_string("Model saved in file: %s" % save_path)
 
 
-
-def train_one_epoch(sess, ops, train_writer):
+def train_one_epoch(train_data, train_label, sess, ops, train_writer):
     """ ops: dict mapping from string to tf ops """
     is_training = True
     
     log_string('----')
-    current_data, current_label, _ = provider.shuffle_data(train_data[:,0:NUM_POINT,:], train_label) 
+    current_data, current_label, _ = provider.shuffle_data(
+        train_data[:, 0:NUM_POINT, :],
+        train_label)
     
     file_size = current_data.shape[0]
     num_batches = file_size // BATCH_SIZE
@@ -229,11 +247,18 @@ def train_one_epoch(sess, ops, train_writer):
         start_idx = batch_idx * BATCH_SIZE
         end_idx = (batch_idx+1) * BATCH_SIZE
         
-        feed_dict = {ops['pointclouds_pl']: current_data[start_idx:end_idx, :, :],
-                     ops['labels_pl']: current_label[start_idx:end_idx],
-                     ops['is_training_pl']: is_training,}
-        summary, step, _, loss_val, pred_val = sess.run([ops['merged'], ops['step'], ops['train_op'], ops['loss'], ops['pred']],
-                                         feed_dict=feed_dict)
+        feed_dict = {
+            ops['pointclouds_pl']: current_data[start_idx:end_idx, :, :],
+            ops['labels_pl']: current_label[start_idx:end_idx],
+            ops['is_training_pl']: is_training}
+
+        summary, step, _, loss_val, pred_val = sess.run(
+            [ops['merged'],
+             ops['step'],
+             ops['train_op'],
+             ops['loss'],
+             ops['pred']], feed_dict=feed_dict)
+
         train_writer.add_summary(summary, step)
         pred_val = np.argmax(pred_val, 2)
         correct = np.sum(pred_val == current_label[start_idx:end_idx])
@@ -245,7 +270,7 @@ def train_one_epoch(sess, ops, train_writer):
     log_string('accuracy: %f' % (total_correct / float(total_seen)))
 
         
-def eval_one_epoch(sess, ops, test_writer):
+def eval_one_epoch(test_data, test_label, sess, ops, test_writer):
     """ ops: dict mapping from string to tf ops """
     is_training = False
     total_correct = 0
@@ -255,7 +280,7 @@ def eval_one_epoch(sess, ops, test_writer):
     total_correct_class = [0 for _ in range(NUM_CLASSES)]
     
     log_string('----')
-    current_data = test_data[:,0:NUM_POINT,:]
+    current_data = test_data[:, 0:NUM_POINT, :]
     current_label = np.squeeze(test_label)
     
     file_size = current_data.shape[0]
@@ -288,14 +313,5 @@ def eval_one_epoch(sess, ops, test_writer):
          
 
 if __name__ == "__main__":
+    main()
 
-    # snapshot = tracemalloc.take_snapshot()
-    # top_stats = snapshot.statistics('lineno')
-
-    # print("[ Top 10 ]")
-    # for stat in top_stats[:10]:
-    #     print(stat)
-    #
-
-    train()
-    LOG_FOUT.close()
