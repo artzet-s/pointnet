@@ -137,8 +137,14 @@ def sample_data_label(data, label, num_sample):
 	return new_data, new_label
 
 
-def room2blocks(data, label, num_point, block_size=1.0, stride=1.0,
-                random_sample=False, sample_num=None, sample_aug=1):
+def room2blocks(data,
+                label,
+                num_point,
+                block_size=1.0,
+                stride=1.0,
+                random_sample=False,
+                sample_num=None,
+                sample_aug=1):
 	""" Prepare block training data.
 	Args:
 		data: N x 6 numpy array, 012 are XYZ in meters, 345 are RGB in [0,1]
@@ -244,14 +250,22 @@ def room2blocks_plus_normalized(data_label, num_point, block_size, stride,
 	data = data_label[:, 0:6]
 	data[:, 3:6] /= 255.0
 	label = data_label[:, -1].astype(np.uint8)
+
 	max_room_x = max(data[:, 0])
 	max_room_y = max(data[:, 1])
 	max_room_z = max(data[:, 2])
 
-	data_batch, label_batch = room2blocks(data, label, num_point, block_size,
+	data_batch, label_batch = room2blocks(data,
+	                                      label,
+	                                      num_point,
+	                                      block_size,
 	                                      stride,
-	                                      random_sample, sample_num, sample_aug)
+	                                      random_sample,
+	                                      sample_num,
+	                                      sample_aug)
+
 	new_data_batch = np.zeros((data_batch.shape[0], num_point, 9))
+
 	for b in range(data_batch.shape[0]):
 		new_data_batch[b, :, 6] = data_batch[b, :, 0] / max_room_x
 		new_data_batch[b, :, 7] = data_batch[b, :, 1] / max_room_y
@@ -260,14 +274,20 @@ def room2blocks_plus_normalized(data_label, num_point, block_size, stride,
 		miny = min(data_batch[b, :, 1])
 		data_batch[b, :, 0] -= (minx + block_size / 2)
 		data_batch[b, :, 1] -= (miny + block_size / 2)
+
 	new_data_batch[:, :, 0:6] = data_batch
+
 	return new_data_batch, label_batch
 
 
-def room2blocks_wrapper_normalized(data_label_filename, num_point,
-                                   block_size=1.0, stride=1.0,
-                                   random_sample=False, sample_num=None,
+def room2blocks_wrapper_normalized(data_label_filename,
+                                   num_point,
+                                   block_size=1.0,
+                                   stride=1.0,
+                                   random_sample=False,
+                                   sample_num=None,
                                    sample_aug=1):
+
 	if data_label_filename[-3:] == 'txt':
 		data_label = np.loadtxt(data_label_filename)
 	elif data_label_filename[-3:] == 'npy':
@@ -345,7 +365,7 @@ def room2samples_plus_normalized(data_label, num_point):
 		# data_batch[b, :, 0] -= (minx+block_size/2)
 		# data_batch[b, :, 1] -= (miny+block_size/2)
 	new_data_batch[:, :, 0:6] = data_batch
-	return new_data_batch, label_batch
+	return new_data_batch, label_batch.astype(np.uint8)
 
 
 def room2samples_wrapper_normalized(data_label_filename, num_point):

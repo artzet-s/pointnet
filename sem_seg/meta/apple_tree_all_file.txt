@@ -8,8 +8,6 @@ data/apple_tree/pc_2018_08_02_L01_P07_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P08_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P09_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P10_fake_labeled.npy
-data/apple_tree/pc_2018_08_02_L01_P11_fake_labeled.npy
-data/apple_tree/pc_2018_08_02_L01_P12_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P13_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P14_fake_labeled.npy
 data/apple_tree/pc_2018_08_02_L01_P15_fake_labeled.npy

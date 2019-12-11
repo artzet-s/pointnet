@@ -1,0 +1,22 @@
+Namespace(batch_size=1, dump_dir='log_tree/dump', gpu=0, model_path='log_tree/model.ckpt', no_clutter=False, num_point=8192, room_data_filelist='meta/apple_tree_all_file.txt')
+Model restored.
+eval mean loss: 47.944006
+eval accuracy: 0.000000
+eval mean loss: 62.991210
+eval accuracy: 0.000000
+eval mean loss: 39.593442
+eval accuracy: 0.000000
+eval mean loss: 32.238813
+eval accuracy: 0.000000
+eval mean loss: 44.897245
+eval accuracy: 0.000000
+eval mean loss: 41.301084
+eval accuracy: 0.000000
+eval mean loss: 52.456846
+eval accuracy: 0.000000
+eval mean loss: 51.464609
+eval accuracy: 0.000000
+eval mean loss: 59.252038
+eval accuracy: 0.000000
+eval mean loss: 82.496300
+eval accuracy: 0.000000
