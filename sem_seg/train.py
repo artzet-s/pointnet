@@ -13,7 +13,6 @@ sys.path.append(BASE_DIR)
 import provider
 import model
 
-
 # ==============================================================================
 
 def argument_parser():
@@ -48,7 +47,6 @@ FLAGS = argument_parser()
 BATCH_SIZE = FLAGS.batch_size
 NUM_POINT = FLAGS.num_point
 MAX_EPOCH = FLAGS.max_epoch
-NUM_POINT = FLAGS.num_point
 BASE_LEARNING_RATE = FLAGS.learning_rate
 GPU_INDEX = FLAGS.gpu
 MOMENTUM = FLAGS.momentum
@@ -72,10 +70,9 @@ BN_DECAY_DECAY_RATE = 0.5
 BN_DECAY_DECAY_STEP = float(DECAY_STEP)
 BN_DECAY_CLIP = 0.99
 
-HOSTNAME = socket.gethostname()
-
 
 def get_data():
+
     ALL_FILES = provider.getDataFiles(
         'indoor3d_sem_seg_hdf5_data/all_files.txt')
     room_filelist = [line.rstrip() for line in open(
@@ -121,28 +118,6 @@ def log_string(out_str):
     print(out_str)
 
 
-def get_learning_rate(batch):
-    learning_rate = tf.train.exponential_decay(
-                        BASE_LEARNING_RATE,  # Base learning rate.
-                        batch * BATCH_SIZE,  # Current index into the dataset.
-                        DECAY_STEP,          # Decay step.
-                        DECAY_RATE,          # Decay rate.
-                        staircase=True)
-    learning_rate = tf.maximum(learning_rate, 0.00001) # CLIP THE LEARNING RATE!!
-    return learning_rate        
-
-
-def get_bn_decay(batch):
-    bn_momentum = tf.train.exponential_decay(
-                      BN_INIT_DECAY,
-                      batch*BATCH_SIZE,
-                      BN_DECAY_DECAY_STEP,
-                      BN_DECAY_DECAY_RATE,
-                      staircase=True)
-    bn_decay = tf.minimum(BN_DECAY_CLIP, 1 - bn_momentum)
-    return bn_decay
-
-
 def train(train_data, train_label, test_data, test_label):
 
     print("Num GPUs Available: ",
@@ -150,42 +125,100 @@ def train(train_data, train_label, test_data, test_label):
 
     tf.debugging.set_log_device_placement(True)
     strategy = tf.distribute.MirroredStrategy()
-    # strategy = tf.distribute.MirroredStrategy(devices=["/gpu:0", "/gpu:1"])
+
+    # train_data = strategy.experimental_distribute_dataset(train_data)
+    # train_label = strategy.experimental_distribute_dataset(train_label)
+    # test_data = strategy.experimental_distribute_dataset(test_data)
+    # test_label = strategy.experimental_distribute_dataset(test_label)
 
     with strategy.scope():
         with tf.Graph().as_default():
-             # with tf.device('/gpu:'+str(GPU_INDEX)):
-            pointclouds_pl, labels_pl = model.placeholder_inputs(
-                BATCH_SIZE, NUM_POINT)
-            is_training_pl = tf.placeholder(tf.bool, shape=())
-            
-            # Note the global_step=batch parameter to minimize. 
-            # That tells the optimizer to helpfully increment the 'batch' parameter for you every time it trains.
+
+            # ==================================================================
+            # Set the placeholder tensor
+            pointclouds_pl = tf.placeholder(
+                tf.float32,
+                shape=(BATCH_SIZE, NUM_POINT, 9))
+
+            labels_pl = tf.placeholder(
+                tf.int32,
+                shape=(BATCH_SIZE, NUM_POINT))
+
+            is_training_pl = tf.placeholder(
+                tf.bool,
+                shape=())
+
+            # ==================================================================
+            # Note the global_step=batch parameter to minimize.
+            # That tells the optimizer to helpfully increment the 'batch'
+            # parameter for you every time it trains.
             batch = tf.Variable(0)
-            bn_decay = get_bn_decay(batch)
+
+            # ==================================================================
+            # SET DECAY
+            bn_momentum = tf.train.exponential_decay(
+                BN_INIT_DECAY,
+                batch * BATCH_SIZE,
+                BN_DECAY_DECAY_STEP,
+                BN_DECAY_DECAY_RATE,
+                staircase=True)
+            bn_decay = tf.minimum(BN_DECAY_CLIP, 1 - bn_momentum)
             tf.summary.scalar('bn_decay', bn_decay)
 
-            # Get model and loss 
-            pred = model.get_model(pointclouds_pl, is_training_pl, bn_decay=bn_decay)
-            loss = model.get_loss(pred, labels_pl)
+            # ==================================================================
+            # Set model
+            pred = model.get_model(pointclouds_pl,
+                                   is_training_pl,
+                                   bn_decay=bn_decay)
+            # ==================================================================
+            # Set loss
+            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=pred,
+                labels=labels_pl)
+            loss = tf.reduce_mean(loss)
             tf.summary.scalar('loss', loss)
 
-            correct = tf.equal(tf.argmax(pred, 2), tf.to_int64(labels_pl))
-            accuracy = tf.reduce_sum(tf.cast(correct, tf.float32)) / float(BATCH_SIZE*NUM_POINT)
+            # ==================================================================
+            # Set Accurancy
+            correct = tf.equal(tf.argmax(pred, 2),
+                               tf.to_int64(labels_pl))
+
+            accuracy = tf.reduce_sum(
+                tf.cast(correct, tf.float32)) / float(BATCH_SIZE * NUM_POINT)
+
             tf.summary.scalar('accuracy', accuracy)
 
-            # Get training operator
-            learning_rate = get_learning_rate(batch)
+            # ==================================================================
+            # Set learning_rate
+            learning_rate = tf.train.exponential_decay(
+                BASE_LEARNING_RATE,
+                batch * BATCH_SIZE,  # Current index into the dataset.
+                DECAY_STEP,
+                DECAY_RATE,
+                staircase=True)
+
+            # CLIP THE LEARNING RATE!!
+            learning_rate = tf.maximum(learning_rate, 0.00001)
             tf.summary.scalar('learning_rate', learning_rate)
+
+            # ==================================================================
+            # Merge all the Summary value
+            merged = tf.summary.merge_all()
+
+            # ==================================================================
+            # Set training optimizer
             if OPTIMIZER == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=MOMENTUM)
+                optimizer = tf.train.MomentumOptimizer(
+                    learning_rate, momentum=MOMENTUM)
             elif OPTIMIZER == 'adam':
                 optimizer = tf.train.AdamOptimizer(learning_rate)
             train_op = optimizer.minimize(loss, global_step=batch)
-            
+
+            # ==================================================================
             # Add ops to save and restore all the variables.
             saver = tf.train.Saver()
-            
+
+            # ==================================================================
             # Create a session
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
@@ -193,15 +226,20 @@ def train(train_data, train_label, test_data, test_label):
             config.log_device_placement = True
             sess = tf.Session(config=config)
 
-            # Add summary writers
-            merged = tf.summary.merge_all()
-            train_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'train'),
-                                      sess.graph)
+
+
+            # ==================================================================
+            # Set file writer
+
+            train_writer = tf.summary.FileWriter(
+                os.path.join(LOG_DIR, 'train'), sess.graph)
+
             test_writer = tf.summary.FileWriter(os.path.join(LOG_DIR, 'test'))
 
+            # ==================================================================
             # Init variables
             init = tf.global_variables_initializer()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
-            sess.run(init, {is_training_pl:True})
+            sess.run(init, {is_training_pl: True})
 
             ops = {'pointclouds_pl': pointclouds_pl,
                    'labels_pl': labels_pl,
@@ -213,7 +251,7 @@ def train(train_data, train_label, test_data, test_label):
                    'step': batch}
 
             for epoch in range(MAX_EPOCH):
-                log_string('**** EPOCH %03d ****' % (epoch))
+                log_string('**** EPOCH %03d ****' % epoch)
                 sys.stdout.flush()
 
                 train_one_epoch(train_data, train_label, sess, ops, train_writer)
@@ -221,7 +259,8 @@ def train(train_data, train_label, test_data, test_label):
 
                 # Save the variables to disk.
                 if epoch % 10 == 0:
-                    save_path = saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"))
+                    save_path = saver.save(
+                        sess, os.path.join(LOG_DIR, "model.ckpt"))
                     log_string("Model saved in file: %s" % save_path)
 
 
@@ -290,9 +329,11 @@ def eval_one_epoch(test_data, test_label, sess, ops, test_writer):
         start_idx = batch_idx * BATCH_SIZE
         end_idx = (batch_idx+1) * BATCH_SIZE
 
-        feed_dict = {ops['pointclouds_pl']: current_data[start_idx:end_idx, :, :],
-                     ops['labels_pl']: current_label[start_idx:end_idx],
-                     ops['is_training_pl']: is_training}
+        feed_dict = {
+            ops['pointclouds_pl']: current_data[start_idx:end_idx, :, :],
+            ops['labels_pl']: current_label[start_idx:end_idx],
+            ops['is_training_pl']: is_training}
+
         summary, step, loss_val, pred_val = sess.run([ops['merged'], ops['step'], ops['loss'], ops['pred']],
                                       feed_dict=feed_dict)
         test_writer.add_summary(summary, step)
@@ -314,4 +355,3 @@ def eval_one_epoch(test_data, test_label, sess, ops, test_writer):
 
 if __name__ == "__main__":
     main()
-
