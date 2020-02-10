@@ -138,9 +138,10 @@ def eval_one_epoch(sess, ops, input_filename, output_filename):
 
     # ==========================================================================
     #
-    current_data, current_label = indoor3d_util.room2samples_wrapper_normalized(
+    current_data, current_label = indoor3d_util.room2blocks_wrapper_normalized(
         input_filename,
-        NUM_POINT)
+        NUM_POINT,
+        test_mode=True)
 
     current_data = current_data[:, 0:NUM_POINT, :]
     current_label = np.squeeze(current_label)
@@ -158,6 +159,9 @@ def eval_one_epoch(sess, ops, input_filename, output_filename):
     max_room_x = max(data_label[:, 0])
     max_room_y = max(data_label[:, 1])
     max_room_z = max(data_label[:, 2])
+
+
+    list_point = list()
 
     file_size = current_data.shape[0]
     num_batches = file_size // BATCH_SIZE
@@ -196,13 +200,15 @@ def eval_one_epoch(sess, ops, input_filename, output_filename):
             pred = pred_label[b, :]
 
             for i in range(NUM_POINT):
-                line = '%f %f %f %d %d %d %f %d\n' % (
-                    pts[i, 6], pts[i, 7], pts[i, 8],
-                    pts[i, 3], pts[i, 4], pts[i, 5],
-                    pred_val[b, i, pred[i]],
-                    pred[i])
+                # line = '%f %f %f %d %d %d %f %d\n' % (
+                #     pts[i, 6], pts[i, 7], pts[i, 8],
+                #     pts[i, 3], pts[i, 4], pts[i, 5],
+                #     pred_val[b, i, pred[i]],
+                #     pred[i])
 
-                fout_data_label.write(line)
+                list_point.append((pts[i, 0], pts[i, 1], pts[i, 2], pred[i]))
+
+                # fout_data_label.write(line)
 
         correct = np.sum(pred_label == current_label[start_idx:end_idx, :])
         total_correct += correct
@@ -218,10 +224,16 @@ def eval_one_epoch(sess, ops, input_filename, output_filename):
 
                 total_correct_class[l] += (pred_label[i-start_idx, j] == l)
 
+    a = np.array(list_point)
+    print(a.shape, a)
+    a = np.unique(a, axis=0)
+    print(a.shape, a)
+    np.savetxt(output_filename, a, delimiter=' ')
+
     log_string('eval mean loss: %f' % (loss_sum / float(total_seen/NUM_POINT)))
     log_string('eval accuracy: %f' % (total_correct / float(total_seen)))
 
-    fout_data_label.close()
+    # fout_data_label.close()
 
     return total_correct, total_seen
 
