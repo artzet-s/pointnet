@@ -284,7 +284,6 @@ def my_room2blocks(data,
                 stride=1.0,
                 test_mode=False,
                 K=6):
-
 	""" Prepare block training data.
 	Args:
 		data: N x 6 numpy array, 012 are XYZ in meters, 345 are RGB in [0,1]

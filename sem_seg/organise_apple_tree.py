@@ -71,7 +71,7 @@ def build_blocks(data,
                  K=6):
 
     indices = split_3d_point_cloud_to_several_windows(
-        data, window_size=(0.25, 0.25, 0.25))
+    data, window_size=(0.25, 0.25, 0.25))
 
     # Collect blocks
     block_data_list = []
@@ -137,6 +137,7 @@ def block_xyz(data_label,
 
     # CENTRALIZE HERE
     data[:, :3] = data[:, :3] - numpy.amin(data, 0)[0:3]
+
 
     data_batch, label_batch = build_blocks(data,
                                           label,
