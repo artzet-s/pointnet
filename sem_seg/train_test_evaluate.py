@@ -1,8 +1,6 @@
 # ==============================================================================
-import argparse
 import numpy as np
 import tensorflow as tf
-import socket
 # ==============================================================================
 import os
 import sys
@@ -13,9 +11,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
 import pointnet_part_seg
-import provider
 import model
-import indoor3d_util
 import organise_apple_tree
 import pointnet_seg
 # ==============================================================================
@@ -356,6 +352,8 @@ def test_tnet_one_epoch(test_data, test_label, sess, ops, test_writer, log):
 		np.mean(
 			np.array(total_correct_class) /
 			np.array(total_seen_class, dtype=np.float))))
+
+# ==============================================================================
 
 
 def train(train_data, train_label, test_data, test_label, log, K=9):
@@ -759,7 +757,7 @@ def eval_one_epoch(input_filename, output_filename, sess, ops):
 
 def run_train_test_evaluate():
 
-	log = Log("/ext_data/artzet_s/log_model_block_xyz")
+	log = Log("/ext_data/artzet_s/log_model_block_xyzra")
 
 	train_data, train_label = get_data(
 		'/ext_data/artzet_s/train_block_data')
@@ -820,6 +818,6 @@ def run_train_test_evaluate_light():
 
 
 if __name__ == "__main__":
-	# run_train_test_evaluate()
-	run_train_test_evaluate_synth()
+	run_train_test_evaluate()
+	# run_train_test_evaluate_synth()
 	# run_train_test_evaluate_light()

@@ -8,16 +8,33 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-import data_prep_util
-import indoor3d_util
 import shutil
 import random
+import multiprocessing
+import indoor3d_util
 
+def multiprocess_function(function, elements, nb_process=2):
+    pool = multiprocessing.Pool(nb_process)
 
-def initialize_folder(folder_name):
-    if os.path.exists(folder_name):
-        shutil.rmtree(folder_name)
-    os.mkdir(folder_name)
+    nb_elements = len(elements)
+
+    it = pool.imap_unordered(function, elements)
+    
+    for i in range(nb_elements):
+        try:
+            it.next()
+            
+            print("{} : {} / {} ".format(function, i, nb_elements))
+            sys.stdout.flush()
+
+        except Exception as e:
+            print("{} : {} / {} - ERROR {}".format(
+				function, i, nb_elements, e))
+            sys.stdout.flush()
+    pool.close()
+    pool.join()
+    print("%s : %d / %d" % (function, nb_elements, nb_elements))
+    sys.stdout.flush()
 
 
 def _get_indice_3d_windows(xyz, x0, xn, y0, yn, z0, zn):
@@ -26,26 +43,6 @@ def _get_indice_3d_windows(xyz, x0, xn, y0, yn, z0, zn):
     indz = numpy.bitwise_and(z0 <= xyz[:, 2], xyz[:, 2] < zn)
 
     return numpy.bitwise_and(numpy.bitwise_and(indx, indy), indz)
-
-
-def split_3d_point_cloud_to_several_windows(point_cloud, window_size):
-    xyz = point_cloud[:, :3]
-    ws = numpy.array(window_size)
-    xyz_max = numpy.max(xyz, axis=0)
-    xyz_min = numpy.min(xyz, axis=0)
-    pc_nb = numpy.ceil((xyz_max - xyz_min) / ws).astype(int)
-
-    indices = list()
-    for i in range(0, pc_nb[0]):
-        for j in range(0, pc_nb[1]):
-            for k in range(0, pc_nb[2]):
-                x0, y0, z0 = xyz_min + ws * numpy.array([i, j, k])
-                xn, yn, zn = xyz_min + ws * numpy.array([i + 1, j + 1, k + 1])
-
-                ind = _get_indice_3d_windows(xyz, x0, xn, y0, yn, z0, zn)
-                indices.append(ind)
-
-    return indices
 
 
 def compute_min_max():
@@ -70,20 +67,30 @@ def build_blocks(data,
                  test_mode=False,
                  K=6):
 
-    indices = split_3d_point_cloud_to_several_windows(
-    data, window_size=(0.25, 0.25, 0.25))
-
+    window_size=(0.25, 0.25, 0.25)
     # Collect blocks
+
     block_data_list = []
     block_label_list = []
 
-    for cond in indices:
+    xyz = data[:, :3]
+    ws = numpy.array(window_size)
+    xyz_max = numpy.max(xyz, axis=0)
+    xyz_min = numpy.min(xyz, axis=0)
+    pc_nb = numpy.ceil((xyz_max - xyz_min) / ws).astype(int)
+
+    for i, j, k in numpy.ndindex((pc_nb[0], pc_nb[1], pc_nb[2])):
+
+        x0, y0, z0 = xyz_min + ws * numpy.array([i, j, k])
+        xn, yn, zn = xyz_min + ws * numpy.array([i + 1, j + 1, k + 1])
+
+        cond = _get_indice_3d_windows(xyz, x0, xn, y0, yn, z0, zn)
+    
         if numpy.count_nonzero(cond) < 500:
             continue
 
-        block_data = data[cond]
-        block_label = label[cond]
-
+        block_data, block_label = data[cond], label[cond]
+    
         block_data_sampled, block_label_sampled = indoor3d_util.room2samples(
             block_data, block_label, num_point, K=K)
 
@@ -98,11 +105,15 @@ def build_blocks(data,
             block_data_sampled, block_label_sampled = indoor3d_util.sample_data_label(
                 block_data, block_label, num_point)
 
-            block_data_list.append(numpy.expand_dims(block_data_sampled, 0))
-            block_label_list.append(numpy.expand_dims(block_label_sampled, 0))
+            # Keep point if number of apple point are superior to 20
+            if numpy.count_nonzero(block_label_sampled) > 50:
+                block_data_list.append(numpy.expand_dims(block_data_sampled, 0))
+                block_label_list.append(numpy.expand_dims(block_label_sampled, 0))
 
-    return numpy.concatenate(block_data_list, 0), numpy.concatenate(block_label_list,
-                                                              0)
+    if block_data_list:
+        return numpy.concatenate(block_data_list, 0), numpy.concatenate(block_label_list, 0)
+    else:
+        return None, None
 
 
 def block_xyzrad(data_label,
@@ -148,6 +159,21 @@ def block_xyz(data_label,
     return data_batch, label_batch
 
 
+def compute_block(input_filename, output_filename, min_max):
+
+    data_label = numpy.load(input_filename)
+    data, label = block_xyzrad(
+        data_label,
+        4096,
+        min_max)
+    
+    if data is not None:
+        label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
+        label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
+        data_label = numpy.concatenate([data, label], axis=2)
+        numpy.save(output_filename, data_label)
+
+
 def organize_data():
 
     input_folders = [
@@ -160,26 +186,43 @@ def organize_data():
 
     min_max = numpy.loadtxt("mean_data.txt")
 
+    # for input_folders, output_folder in zip(input_folders, output_folders):
+
+    #     if not os.path.exists(output_folder):
+    #         os.mkdir(output_folder)
+
+    #     filenames = glob.glob(os.path.join(input_folders, "*.npy"))
+    #     for i, filename in enumerate(filenames):
+
+    #         basename = os.path.basename(filename)[:-4]
+    #         output_filename = os.path.join(output_folder,
+    #                                        "{}.npy".format(basename))
+
+    #         if not os.path.exists(output_filename):
+    #             compute_block(filename, output_filename, min_max)
+            
+    #         print("{}/{} {}".format(i, len(filenames), output_filename))
+
+    elements = list()
     for input_folders, output_folder in zip(input_folders, output_folders):
 
-        initialize_folder(output_folder)
+        if not os.path.exists(output_folder):
+            os.mkdir(output_folder)
+
         filenames = glob.glob(os.path.join(input_folders, "*.npy"))
-
         for i, filename in enumerate(filenames):
+
             basename = os.path.basename(filename)[:-4]
-            print("{}/{}".format(i, len(filenames)))
+            output_filename = os.path.join(output_folder,
+                                           "{}.npy".format(basename))
 
-            data_label = numpy.load(filename)
-            data, label = block_xyzrad(
-                data_label,
-                6144,
-                min_max)
+            if not os.path.exists(output_filename):
+                elements.append((filename, output_filename, min_max.copy()))
 
-            label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
-            data_label = numpy.concatenate([data, label], axis=2)
-
-            numpy.save(os.path.join(output_folder, "{}.npy".format(basename)),
-                       data_label)
+    print(elements)
+    nb_process = 4
+    pool = multiprocessing.Pool(nb_process)
+    pool.starmap(compute_block, elements)
 
 
 def organize_light_data():
@@ -193,12 +236,12 @@ def organize_light_data():
         "/home/artzet_s/code/dataset/test_light_block_data"]
 
     min_max = numpy.loadtxt("mean_data.txt")
-    print(input_folders, output_folders)
+
     for input_folders, output_folder in zip(input_folders, output_folders):
 
         initialize_folder(output_folder)
         filenames = glob.glob(os.path.join(input_folders, "*.npy"))
-        print(filenames)
+
         for i, filename in enumerate(filenames):
             basename = os.path.basename(filename)[:-4]
             print("{}, {}/{}".format(filename, i, len(filenames)))
@@ -212,6 +255,7 @@ def organize_light_data():
             label = numpy.array([label]).reshape(
                 (label.shape[0], label.shape[1], 1))
 
+            # Keep only the block with enought apple point
             new_data, new_label = list(), list()
             for i in range(data.shape[0]):
                 if numpy.count_nonzero(label[i, :]) > 0:
@@ -223,49 +267,11 @@ def organize_light_data():
 
             data = numpy.stack(new_data)
             label = numpy.stack(new_label)
-            print(data.shape, label.shape)
 
             data_label = numpy.concatenate([data, label], axis=2)
 
             numpy.save(os.path.join(output_folder, "{}.npy".format(basename)),
                        data_label)
-
-
-def organize_floor_data():
-
-    input_folder = "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/aug_train"
-    train_folder = "/home/artzet_s/code/dataset/train_floor_data"
-    test_folder = "/home/artzet_s/code/dataset/test_floor_data"
-
-    initialize_folder(train_folder)
-    initialize_folder(test_folder)
-
-    filenames = glob.glob("{}/*.txt".format(input_folder))
-    min_max = numpy.loadtxt("mean_data.txt")
-
-    for i, filename in enumerate(filenames):
-        print("{}/{}".format(i, len(filenames)))
-
-        data_label = numpy.loadtxt(filename)
-        data_label = data_label[data_label[:, 2] <= -1.40]
-        data, label = indoor3d_util.my_room2blocks_plus_normalized(
-            data_label,
-            6144,
-            min_max,
-            block_size=0.5,
-            stride=0.5,
-            random_sample=False,
-            sample_num=None)
-
-        label = numpy.array([label]).reshape(
-            (label.shape[0], label.shape[1], 1))
-        data_label = numpy.concatenate([data, label], axis=2)
-        basename = os.path.basename(filename)[:-4]
-
-        if i < len(filenames) * 0.80:
-            numpy.save("{}/{}.npy".format(train_folder, basename), data_label)
-        else:
-            numpy.save("{}/{}.npy".format(test_folder, basename), data_label)
 
 
 def organize_synthetic_data():
@@ -297,7 +303,6 @@ def organize_synthetic_data():
 
 
 if __name__ == "__main__":
-    organize_synthetic_data()
-    # organize_floor_data()
-    # organize_data()
+    # organize_synthetic_data()
+    organize_data()
     # organize_light_data()
