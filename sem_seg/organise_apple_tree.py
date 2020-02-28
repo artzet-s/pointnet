@@ -101,12 +101,19 @@ def build_blocks(data,
                 block_label_list.append(
                     numpy.expand_dims(block_label_sampled[i, :, 0], 0))
         else:
-            # randomly subsample data
-            block_data_sampled, block_label_sampled = indoor3d_util.sample_data_label(
-                block_data, block_label, num_point)
+            if numpy.count_nonzero(block_label) > 100 and numpy.count_nonzero(block_label == 0) > 100:
 
-            # Keep point if number of apple point are superior to 20
-            if numpy.count_nonzero(block_label_sampled) > 50:
+                indice_noise = numpy.random.choice(numpy.where(block_label == 0)[0], num_point // 2)
+                indice_apple = numpy.random.choice(numpy.where(block_label == 1)[0], num_point // 2)
+
+
+                block_data_sampled = numpy.concatenate([block_data[indice_noise, ...], 
+                                                        block_data[indice_apple, ...]])
+
+                block_label_sampled = numpy.concatenate([block_label[indice_noise, ...], 
+                                                         block_label[indice_apple, ...]])
+
+                                                                                                                                           
                 block_data_list.append(numpy.expand_dims(block_data_sampled, 0))
                 block_label_list.append(numpy.expand_dims(block_label_sampled, 0))
 
@@ -143,7 +150,7 @@ def block_xyz(data_label,
               num_point,
               test_mode=False):
 
-    data = data_label[:, 0:3]
+    data = data_label[:, :3]
     label = data_label[:, -1].astype(numpy.uint8)
 
     # CENTRALIZE HERE
@@ -161,6 +168,7 @@ def block_xyz(data_label,
 
 def compute_block(input_filename, output_filename, min_max):
 
+    print(input_filename)
     data_label = numpy.load(input_filename)
     data, label = block_xyzrad(
         data_label,
@@ -174,34 +182,50 @@ def compute_block(input_filename, output_filename, min_max):
         numpy.save(output_filename, data_label)
 
 
+def compute_xyz_block(input_filename, output_filename):
+
+    data_label = numpy.loadtxt(input_filename)
+    data, label = block_xyz(
+        data_label,
+        4096)
+    
+    if data is not None:
+        label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
+        label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
+        data_label = numpy.concatenate([data, label], axis=2)
+        numpy.save(output_filename, data_label)
+
+
 def organize_data():
+
+    # input_folders = [
+    #     "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/train",
+    #     "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/test"]
+
+    # output_folders = [
+    #     "/home/artzet_s/code/dataset/pn_train_xyzadr_25cm3_balanced",
+    #     "/home/artzet_s/code/dataset/pn_test_xyzadr_25cm3_balanced"]
+
 
     input_folders = [
         "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/aug_train",
         "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/aug_test"]
 
     output_folders = [
-        "/home/artzet_s/code/dataset/train_block_data",
-        "/home/artzet_s/code/dataset/test_block_data"]
+        "/home/artzet_s/code/dataset/pn_train_aug_xyzadr_25cm3_balanced",
+        "/home/artzet_s/code/dataset/pn_test_aug_xyzadr_25cm3_balanced"]
+
+
+    # input_folders = [
+    #     "/home/artzet_s/code/dataset/synthetic_data/train",
+    #     "/home/artzet_s/code/dataset/synthetic_data/test"]
+
+    # output_folders = [
+    #     "/home/artzet_s/code/dataset/synthetic_data/train_block_synthetic_data",
+    #     "/home/artzet_s/code/dataset/synthetic_data/test_block_synthetic_data"]
+
 
     min_max = numpy.loadtxt("mean_data.txt")
-
-    # for input_folders, output_folder in zip(input_folders, output_folders):
-
-    #     if not os.path.exists(output_folder):
-    #         os.mkdir(output_folder)
-
-    #     filenames = glob.glob(os.path.join(input_folders, "*.npy"))
-    #     for i, filename in enumerate(filenames):
-
-    #         basename = os.path.basename(filename)[:-4]
-    #         output_filename = os.path.join(output_folder,
-    #                                        "{}.npy".format(basename))
-
-    #         if not os.path.exists(output_filename):
-    #             compute_block(filename, output_filename, min_max)
-            
-    #         print("{}/{} {}".format(i, len(filenames), output_filename))
 
     elements = list()
     for input_folders, output_folder in zip(input_folders, output_folders):
@@ -210,6 +234,7 @@ def organize_data():
             os.mkdir(output_folder)
 
         filenames = glob.glob(os.path.join(input_folders, "*.npy"))
+        # filenames = glob.glob(os.path.join(input_folders, "*.txt"))
         for i, filename in enumerate(filenames):
 
             basename = os.path.basename(filename)[:-4]
@@ -218,91 +243,15 @@ def organize_data():
 
             if not os.path.exists(output_filename):
                 elements.append((filename, output_filename, min_max.copy()))
+                # elements.append((filename, output_filename))
 
+    print(len(elements))
     print(elements)
     nb_process = 4
     pool = multiprocessing.Pool(nb_process)
     pool.starmap(compute_block, elements)
-
-
-def organize_light_data():
-
-    input_folders = [
-        "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/aug_train",
-        "/home/artzet_s/code/dataset/afef_apple_tree_filtred_labeled/aug_test"]
-
-    output_folders = [
-        "/home/artzet_s/code/dataset/train_light_block_data",
-        "/home/artzet_s/code/dataset/test_light_block_data"]
-
-    min_max = numpy.loadtxt("mean_data.txt")
-
-    for input_folders, output_folder in zip(input_folders, output_folders):
-
-        initialize_folder(output_folder)
-        filenames = glob.glob(os.path.join(input_folders, "*.npy"))
-
-        for i, filename in enumerate(filenames):
-            basename = os.path.basename(filename)[:-4]
-            print("{}, {}/{}".format(filename, i, len(filenames)))
-
-            data_label = numpy.load(filename)
-            data, label = block_xyzrad(
-                data_label,
-                4096,
-                min_max)
-
-            label = numpy.array([label]).reshape(
-                (label.shape[0], label.shape[1], 1))
-
-            # Keep only the block with enought apple point
-            new_data, new_label = list(), list()
-            for i in range(data.shape[0]):
-                if numpy.count_nonzero(label[i, :]) > 0:
-                    new_data.append(data[i, ...])
-                    new_label.append(label[i, :])
-
-            if not new_data:
-                continue
-
-            data = numpy.stack(new_data)
-            label = numpy.stack(new_label)
-
-            data_label = numpy.concatenate([data, label], axis=2)
-
-            numpy.save(os.path.join(output_folder, "{}.npy".format(basename)),
-                       data_label)
-
-
-def organize_synthetic_data():
-
-    input_folder = "/home/artzet_s/code/dataset/synthetic_lidar_simulation"
-    train_folder = "/home/artzet_s/code/dataset/train_block_synthetic_data"
-    test_folder = "/home/artzet_s/code/dataset/test_block_synthetic_data"
-
-    initialize_folder(train_folder)
-    initialize_folder(test_folder)
-
-    filenames = glob.glob("{}/*.txt".format(input_folder))
-    random.shuffle(filenames)
-
-    for i, filename in enumerate(filenames):
-        basename = os.path.basename(filename)[:-4]
-        print("{} {}/{}".format(basename, i, len(filenames)))
-
-        data_label = numpy.loadtxt(filename)
-        data, label = block_xyz(data_label, 4096)
-
-        label = numpy.array([label]).reshape((label.shape[0], label.shape[1], 1))
-        data_label = numpy.concatenate([data, label], axis=2)
-
-        if i < len(filenames) * 0.80:
-            numpy.save("{}/{}.npy".format(train_folder, basename), data_label)
-        else:
-            numpy.save("{}/{}.npy".format(test_folder, basename), data_label)
+    # pool.starmap(compute_xyz_block, elements)
 
 
 if __name__ == "__main__":
-    # organize_synthetic_data()
     organize_data()
-    # organize_light_data()

@@ -70,6 +70,9 @@ def get_loss(pred, label):
     """ pred: B,N,13
         label: B,N """
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred, labels=label)
+
+    loss[label == 1] * 4
+
     return tf.reduce_mean(loss)
 
 
